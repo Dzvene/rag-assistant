@@ -1,5 +1,6 @@
 # Interview mode prompts
 #
+# files          — paths relative to knowledge_base/personal/ to ingest
 # quick_system   — gpt-4o-mini, fast RAG answer during the interview
 # hint_system    — claude-sonnet-4-6, structured deep hint with examples/code
 # summary_system — claude-sonnet-4-6, session recap after the interview ends
@@ -8,6 +9,10 @@
 # fallback_system — gpt-4o-mini, used when knowledge base is empty or no match found
 #
 # Tip: put your real tech stack in hint_system and ingest_system so hints stay relevant.
+
+files:
+  - cv.md
+  - tech_stack.md
 
 quick_system: |
   You are a real-time assistant helping during a job interview.

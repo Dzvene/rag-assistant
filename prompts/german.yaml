@@ -1,5 +1,6 @@
 # German language mode prompts
 #
+# files          — paths relative to knowledge_base/personal/ to ingest
 # quick_system   — gpt-4o-mini, fast answer during a lesson or conversation
 # hint_system    — claude-sonnet-4-6, structured grammar/vocabulary explanation
 # summary_system — claude-sonnet-4-6, lesson recap with new words and rules covered
@@ -9,6 +10,10 @@
 #
 # Tip: set your current level in hint_system so explanations match your progress.
 # Current level example: A2-B1
+
+files:
+  - german/grammar.md
+  - german/vocabulary.md
 
 quick_system: |
   You are a German language assistant.
