@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Personal knowledge — never commit
+knowledge_base/personal/
+
+# ChromaDB data
+db/
+
+# Logs
+*.log
