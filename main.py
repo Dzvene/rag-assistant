@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.panel import Panel
 from rag_assistant import knowledge, assistant
+from rag_assistant.knowledge import available_modes
 
 load_dotenv()
 logging.basicConfig(level=logging.WARNING)
@@ -95,7 +96,7 @@ def interactive(mode: str):
                 break
             elif cmd == "/stats":
                 show_stats()
-            elif cmd == "/mode" and len(parts) > 1 and parts[1] in ("interview", "german"):
+            elif cmd == "/mode" and len(parts) > 1 and parts[1] in available_modes():
                 mode = parts[1]
                 console.print(f"[dim]Switched to [cyan]{mode}[/cyan][/dim]\n")
                 if knowledge.stats().get(mode, 0) == 0:
@@ -122,7 +123,8 @@ def interactive(mode: str):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["interview", "german"], default="interview")
+    modes = available_modes()
+    parser.add_argument("--mode", choices=modes, default=modes[0] if modes else "interview")
     parser.add_argument("--stats", action="store_true")
     args = parser.parse_args()
 

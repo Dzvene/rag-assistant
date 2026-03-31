@@ -1,16 +1,19 @@
 """ChromaDB wrapper — stores and searches knowledge chunks."""
 
 import os
+import glob
 import chromadb
 from chromadb.config import Settings
 from . import embedder
 
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "db")
+_PROMPTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts")
 
-COLLECTIONS = {
-    "interview": "Interview prep — CV, tech stack, answers",
-    "german":    "German language — grammar rules, vocabulary",
-}
+
+def available_modes() -> list[str]:
+    """Return modes discovered from prompts/*.yaml files."""
+    files = glob.glob(os.path.join(_PROMPTS_DIR, "*.yaml"))
+    return sorted(os.path.splitext(os.path.basename(f))[0] for f in files)
 
 _client: chromadb.PersistentClient | None = None
 
@@ -74,5 +77,5 @@ def stats() -> dict:
     client = _get_client()
     return {
         name: client.get_or_create_collection(name).count()
-        for name in COLLECTIONS
+        for name in available_modes()
     }
