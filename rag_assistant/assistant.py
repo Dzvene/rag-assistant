@@ -3,10 +3,13 @@
 Two-model approach (mirrors whisper-tray):
   - gpt-4o-mini       → fast answer with RAG context (cheap, <1s)
   - claude-sonnet-4-6 → deep hint / structured explanation (smarter, used sparingly)
+
+Prompts are loaded from prompts/<mode>.yaml — edit those files to customize behavior.
 """
 
 import os
 import logging
+import yaml
 from openai import OpenAI
 import anthropic
 from . import knowledge
@@ -16,47 +19,30 @@ log = logging.getLogger("rag_assistant")
 _openai: OpenAI | None = None
 _claude: anthropic.Anthropic | None = None
 
-# ── prompts ───────────────────────────────────────────────────────────────────
+_PROMPTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "prompts")
+_prompts_cache: dict[str, dict] = {}
 
-_QUICK_SYSTEM = {
-    "interview": (
-        "You are a real-time assistant helping during a job interview. "
-        "Use the provided context from the candidate's CV and knowledge base. "
-        "Give a concise, confident answer in 2-3 sentences. "
-        "If the context is relevant, use it. Otherwise answer from general knowledge. "
-        "Answer in Russian."
-    ),
-    "german": (
-        "You are a German language assistant. "
-        "Use the provided grammar rules and vocabulary from the knowledge base. "
-        "Give a short, clear answer with one example. Answer in Russian."
-    ),
-}
+# ── prompt loader ─────────────────────────────────────────────────────────────
 
-_HINT_SYSTEM = {
-    "interview": (
-        "You are a smart real-time assistant for a job interview. "
-        "You receive a question or topic from the interviewer.\n\n"
-        "Use the provided knowledge base context if relevant.\n\n"
-        "Format your response exactly like this:\n"
-        "▶ <Topic in Russian>\n"
-        "<brief explanation, 3-5 bullet points>\n"
-        "<short code example if applicable>\n\n"
-        "If the input has no useful content, reply with just: -\n"
-        "Always answer in Russian. "
-        "Stack: React, Next.js, TypeScript, Redux, RTK Query, Node.js, .NET, Python, FastAPI, PostgreSQL, Docker, Azure."
-    ),
-    "german": (
-        "You are a German language tutor assistant.\n\n"
-        "Use the provided grammar/vocabulary context if relevant.\n\n"
-        "Format your response:\n"
-        "▶ <тема>\n"
-        "<правило или объяснение>\n"
-        "<2-3 примера с переводом>\n\n"
-        "If nothing useful to add, reply with just: -\n"
-        "Always answer in Russian."
-    ),
-}
+def _load_prompts(mode: str) -> dict:
+    if mode in _prompts_cache:
+        return _prompts_cache[mode]
+
+    path = os.path.join(_PROMPTS_DIR, f"{mode}.yaml")
+    if not os.path.isfile(path):
+        log.warning("Prompt file not found: %s — using empty prompts", path)
+        return {"quick_system": "", "hint_system": ""}
+
+    with open(path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
+    _prompts_cache[mode] = data
+    return data
+
+
+def reload_prompts():
+    """Clear cache so prompts are reloaded from disk on next call."""
+    _prompts_cache.clear()
 
 # ── clients ───────────────────────────────────────────────────────────────────
 
@@ -90,19 +76,17 @@ def query(text: str, mode: str = "interview", n_chunks: int = 4) -> dict:
 
     Returns: {"answer": str, "context": list[dict], "mode": str}
     """
+    prompts = _load_prompts(mode)
     chunks = knowledge.search(mode, text, n=n_chunks)
     context = _build_context(chunks)
 
-    if context:
-        user_msg = f"Knowledge base context:\n{context}\n\nQuestion: {text}"
-    else:
-        user_msg = text
+    user_msg = f"Knowledge base context:\n{context}\n\nQuestion: {text}" if context else text
 
     try:
         resp = _get_openai().chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": _QUICK_SYSTEM.get(mode, _QUICK_SYSTEM["interview"])},
+                {"role": "system", "content": prompts["quick_system"]},
                 {"role": "user", "content": user_msg},
             ],
             max_tokens=300,
@@ -124,19 +108,17 @@ def hint(text: str, mode: str = "interview", n_chunks: int = 4) -> str:
     if not text or len(text) < 15:
         return ""
 
+    prompts = _load_prompts(mode)
     chunks = knowledge.search(mode, text, n=n_chunks)
     context = _build_context(chunks)
 
-    if context:
-        user_msg = f"Knowledge base context:\n{context}\n\nSpeech/question: {text}"
-    else:
-        user_msg = text
+    user_msg = f"Knowledge base context:\n{context}\n\nSpeech/question: {text}" if context else text
 
     try:
         msg = _get_claude().messages.create(
             model="claude-sonnet-4-6",
             max_tokens=500,
-            system=_HINT_SYSTEM.get(mode, _HINT_SYSTEM["interview"]),
+            system=prompts["hint_system"],
             messages=[{"role": "user", "content": user_msg}],
         )
         result = msg.content[0].text.strip()
